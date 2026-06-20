@@ -17,7 +17,7 @@ export default async function InstallPage(props: {
   const searchParams = await props.searchParams;
   const stepParam = searchParams?.step;
   let initialStep = stepParam
-    ? parseInt(Array.isArray(stepParam) ? stepParam[0] : stepParam, 10)
+    ? parseInt(Array.isArray(stepParam) ? (stepParam[0] ?? '') : stepParam, 10)
     : 1;
 
   if (isNaN(initialStep) || initialStep < 1 || initialStep > 3) {
