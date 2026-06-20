@@ -67,7 +67,7 @@ export function InstallWizard({ initialStep, installUrl }: InstallWizardProps) {
           STEP {step} OF 3
         </div>
 
-        {step === 1 && <Step1 installUrl={installUrl} onNext={() => goToStep(2)} />}
+        {step === 1 && <Step1 installUrl={installUrl} />}
         {step === 2 && <Step2 onNext={() => goToStep(3)} onBack={() => goToStep(1)} />}
         {step === 3 && <Step3 onBack={() => goToStep(2)} />}
       </main>
@@ -75,7 +75,7 @@ export function InstallWizard({ initialStep, installUrl }: InstallWizardProps) {
   );
 }
 
-function Step1({ installUrl, onNext }: { installUrl: string; onNext: () => void }) {
+function Step1({ installUrl }: { installUrl: string }) {
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
       <h1 className="mb-4 font-display text-4xl font-bold">One more step</h1>

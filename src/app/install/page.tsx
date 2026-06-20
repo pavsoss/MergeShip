@@ -11,12 +11,18 @@ export const dynamic = 'force-dynamic';
  * GitHub App on their account yet. One click sends them to GitHub's install flow;
  * the App's installation.created webhook records the install and unblocks them.
  */
-export default async function InstallPage(props: { searchParams?: any }) {
+export default async function InstallPage(props: {
+  searchParams: Promise<{ step?: string | string[] }>;
+}) {
   const searchParams = await props.searchParams;
   const stepParam = searchParams?.step;
-  const initialStep = stepParam
+  let initialStep = stepParam
     ? parseInt(Array.isArray(stepParam) ? stepParam[0] : stepParam, 10)
     : 1;
+
+  if (isNaN(initialStep) || initialStep < 1 || initialStep > 3) {
+    initialStep = 1;
+  }
 
   const sb = await getServerSupabase();
   if (!sb) {
