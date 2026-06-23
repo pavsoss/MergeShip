@@ -58,7 +58,6 @@ export async function bootstrapProfile(): Promise<Result<BootstrapOutput>> {
         github_handle: githubHandle,
         avatar_url: avatarUrl ?? null,
         display_name: displayName ?? null,
-        email: user.email ?? null,
       },
       { onConflict: 'id' },
     )
@@ -67,6 +66,21 @@ export async function bootstrapProfile(): Promise<Result<BootstrapOutput>> {
 
   if (upsertErr || !profile) {
     return err('persist_failed', upsertErr?.message ?? 'profile upsert returned nothing');
+  }
+
+  // Upsert the user's email into the private profile_emails table
+  if (user.email) {
+    const { error: emailErr } = await service.from('profile_emails').upsert(
+      {
+        user_id: user.id,
+        email: user.email,
+      },
+      { onConflict: 'user_id' },
+    );
+
+    if (emailErr) {
+      console.error('Failed to upsert profile email', emailErr);
+    }
   }
 
   let auditQueued = false;

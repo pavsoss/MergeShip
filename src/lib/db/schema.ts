@@ -33,7 +33,6 @@ export const profiles = pgTable(
     id: uuid('id').primaryKey(),
     githubId: text('github_id').notNull().unique(),
     githubHandle: text('github_handle').notNull().unique(),
-    email: text('email'),
     displayName: text('display_name'),
     avatarUrl: text('avatar_url'),
     role: text('role', { enum: ['contributor', 'maintainer', 'both'] })
@@ -61,6 +60,15 @@ export const profiles = pgTable(
     primaryLangXpIdx: index('profiles_primary_lang_xp_idx').on(t.primaryLanguage, t.xp),
   }),
 );
+
+export const profileEmails = pgTable('profile_emails', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => profiles.id, { onDelete: 'cascade' }),
+  email: text('email').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
 
 // ---------- GitHub App installations (the gate) ----------
 
