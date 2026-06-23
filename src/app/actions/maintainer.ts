@@ -783,6 +783,8 @@ export async function getPrCiStatus(
 ): Promise<Result<'passing' | 'failing' | 'pending' | null>> {
   const sb = await getServerSupabase();
   if (!sb) return err('not_configured', 'auth not configured');
+  const service = getServiceSupabase();
+  if (!service) return err('not_configured', 'service role missing');
 
   const {
     data: { user },
@@ -791,6 +793,10 @@ export async function getPrCiStatus(
 
   if (!(await isUserMaintainer(user.id))) {
     return err('not_authorised', 'not a maintainer');
+  }
+
+  if (!(await assertMaintainerInstall(service, user.id, installationId))) {
+    return err('not_authorised', 'not your install');
   }
 
   const cacheKey = `ci:status:${repoFullName}:${prNumber}`;
