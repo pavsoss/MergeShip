@@ -14,7 +14,6 @@ export async function devSkipInstall() {
     httpOnly: true,
     sameSite: 'lax',
     maxAge: 3600,
-    secure: process.env.NODE_ENV === 'production',
   });
 
   redirect('/dashboard');
