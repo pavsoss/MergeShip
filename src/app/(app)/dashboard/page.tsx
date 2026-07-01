@@ -71,8 +71,6 @@ export default async function DashboardPage() {
   const xp = profile?.xp ?? 0;
   const level = profile?.level ?? 0;
   const githubHandle = profile?.github_handle ?? 'Contributor';
-  const streak = profile?.github_streak ?? 0;
-
   return (
     <div className="min-h-screen bg-[#0d1117] p-6 font-mono text-white md:p-10">
       <div className="mx-auto max-w-[1400px]">
