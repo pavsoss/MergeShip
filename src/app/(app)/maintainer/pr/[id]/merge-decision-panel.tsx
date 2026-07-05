@@ -6,11 +6,20 @@ import { getPrCiStatus, mergePullRequest } from '@/app/actions/maintainer';
 import { isOk } from '@/lib/result';
 import { RequestChangesButton } from './request-changes-button';
 import { ClosePrButton } from './close-pr-button';
-import { GitMerge } from 'lucide-react';
+import { GitMerge, X } from 'lucide-react';
 
 type CiStatus = 'passing' | 'failing' | 'pending' | null;
+type CheckStatus = 'passing' | 'failing' | 'pending';
 
-function CheckRow({ label, pass, loading }: { label: string; pass: boolean; loading?: boolean }) {
+function CheckRow({
+  label,
+  status,
+  loading,
+}: {
+  label: string;
+  status: CheckStatus;
+  loading?: boolean;
+}) {
   if (loading) {
     return (
       <div className="flex items-center gap-3 font-mono text-sm">
@@ -19,18 +28,28 @@ function CheckRow({ label, pass, loading }: { label: string; pass: boolean; load
       </div>
     );
   }
+
+  const isPassing = status === 'passing';
+  const isFailing = status === 'failing';
+
   return (
     <div className="flex items-center gap-3 font-mono text-sm">
       <span
         className={`inline-flex h-[14px] w-[14px] items-center justify-center rounded-sm text-[10px] font-bold ${
-          pass
+          isPassing
             ? 'border border-emerald-500 bg-emerald-950/20 text-emerald-400'
-            : 'border border-zinc-700 bg-transparent text-zinc-600'
+            : isFailing
+              ? 'border border-rose-500 bg-rose-950/20 text-rose-400'
+              : 'border border-zinc-700 bg-transparent text-zinc-600'
         }`}
       >
-        {pass ? '✓' : ''}
+        {isPassing ? '✓' : isFailing ? <X className="h-3 w-3" strokeWidth={3} /> : ''}
       </span>
-      <span className={pass ? 'text-emerald-400' : 'text-zinc-500'}>{label}</span>
+      <span
+        className={isPassing ? 'text-emerald-400' : isFailing ? 'text-rose-400' : 'text-zinc-500'}
+      >
+        {label}
+      </span>
     </div>
   );
 }
@@ -74,7 +93,8 @@ export function MergeDecisionPanel({
     };
   }, [installationId, repoFullName, prNumber]);
 
-  const allPassing = mentorVerified && !aiFlagged && ciStatus === 'passing';
+  let mentorApprovalLabel = 'Mentor verified';
+  let reviewStatus: CheckStatus = mentorVerified ? 'passing' : 'pending';
 
   async function handleMerge() {
     setMerging(true);
@@ -93,27 +113,36 @@ export function MergeDecisionPanel({
     }
   }
 
-  let mentorApprovalLabel = 'Mentor verified';
   if (pipelineStages && pipelineStages.length > 0) {
-    const mentorStage = pipelineStages.find(
-      (s) => s.stageType === 'mentor_approval' && s.status === 'approved',
-    );
+    const mentorStage = pipelineStages.find((s) => s.stageType === 'mentor_approval');
     if (mentorStage) {
-      mentorApprovalLabel =
-        mentorStage.reviewerLevelSnapshot != null
-          ? `Review stages passed (L${mentorStage.reviewerLevelSnapshot})`
-          : 'Review stages passed';
-    } else {
-      mentorApprovalLabel = 'Review stages pending';
+      if (mentorStage.status === 'approved') {
+        mentorApprovalLabel =
+          mentorStage.reviewerLevelSnapshot != null
+            ? `Review stages passed (L${mentorStage.reviewerLevelSnapshot})`
+            : 'Review stages passed';
+        reviewStatus = 'passing';
+      } else if (mentorStage.status === 'changes_requested' || mentorStage.status === 'rejected') {
+        mentorApprovalLabel = 'Review stages failed';
+        reviewStatus = 'failing';
+      } else {
+        mentorApprovalLabel = 'Review stages pending';
+        reviewStatus = 'pending';
+      }
     }
   }
+
+  const allPassing = reviewStatus === 'passing' && !aiFlagged && ciStatus === 'passing';
 
   return (
     <div>
       <div className="space-y-3">
-        <CheckRow label={mentorApprovalLabel} pass={mentorVerified} />
-        <CheckRow label="No AI flags detected" pass={!aiFlagged} />
-        <CheckRow label="CI Pipeline Passed" pass={ciStatus === 'passing'} loading={ciLoading} />
+        <CheckRow label={mentorApprovalLabel} status={reviewStatus} />
+        <CheckRow
+          label={aiFlagged ? 'AI flags detected' : 'No AI flags detected'}
+          status={aiFlagged ? 'failing' : 'passing'}
+        />
+        <CheckRow label="CI Pipeline Passed" status={ciStatus || 'pending'} loading={ciLoading} />
       </div>
 
       <button

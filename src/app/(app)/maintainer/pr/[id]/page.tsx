@@ -7,6 +7,7 @@ import { getPrDetails, getPrActivityTimeline, previewMergeXp } from '@/app/actio
 import { isOk } from '@/lib/result';
 import { VerifyButton } from '@/app/(app)/issues/verify-button';
 import { MergeDecisionPanel } from './merge-decision-panel';
+import { PipelineStepper, StepperNode } from './pipeline-stepper';
 import {
   GitPullRequest,
   MessageSquare,
@@ -109,6 +110,49 @@ export default async function PrDetailPage({ params }: { params: Promise<{ id: s
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
           {/* Main timeline + Header (2 cols) */}
           <div className="space-y-6 lg:col-span-2">
+            {(() => {
+              const stepperNodes: StepperNode[] = [];
+              stepperNodes.push({
+                label: 'Submitted',
+                subLabel: pr.authorLogin,
+                status: 'completed',
+              });
+
+              if (pr.pipelineStages) {
+                pr.pipelineStages.forEach((stage) => {
+                  let label = stage.stageType.replace('_', ' ');
+                  if (stage.stageType === 'mentor_approval') {
+                    label = stage.reviewerLevelSnapshot
+                      ? `L${stage.reviewerLevelSnapshot} Review`
+                      : 'Mentor Review';
+                  }
+                  stepperNodes.push({
+                    label,
+                    subLabel: stage.status === 'approved' ? 'Approved' : 'Pending',
+                    status: stage.status === 'approved' ? 'completed' : 'current',
+                  });
+                });
+              }
+
+              const isMerged = pr.state === 'merged';
+              const isClosed = pr.state === 'closed';
+
+              stepperNodes.push({
+                label: 'Maintainer',
+                subLabel: isMerged ? 'Approved' : isClosed ? 'Closed' : 'Awaiting you',
+                status: isMerged ? 'completed' : isClosed ? 'completed' : 'current',
+                iconType: isMerged ? 'check' : isClosed ? 'check' : 'hourglass',
+              });
+
+              stepperNodes.push({
+                label: 'Merge',
+                status: isMerged ? 'completed' : 'pending',
+                iconType: 'merge',
+              });
+
+              return <PipelineStepper nodes={stepperNodes} />;
+            })()}
+
             {/* Header Section */}
             <header className="rounded-3xl border border-zinc-800 bg-zinc-900/40 p-6 backdrop-blur-md">
               <div className="flex flex-wrap items-start justify-between gap-4">
