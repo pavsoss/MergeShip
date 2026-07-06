@@ -175,6 +175,7 @@ describe('getIssuesPage', () => {
       data: { session: null },
     });
     mocks.mockGetInstallationToken.mockResolvedValue('fake-install-token');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
   });
 
   it('returns empty result set when user has no installations', async () => {

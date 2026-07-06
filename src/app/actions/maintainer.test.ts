@@ -33,6 +33,8 @@ import * as rateLimitLib from '@/lib/rate-limit';
 
 //   Supabase mocks
 
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+
 const mockGetUser = vi.fn();
 vi.mock('@/lib/supabase/server', () => ({
   getServerSupabase: () => ({ auth: { getUser: mockGetUser } }),
@@ -1541,7 +1543,8 @@ describe('maintainer actions', () => {
         .mockReturnValueOnce(chain(mockRepo)) // installation_repositories
         .mockReturnValueOnce(chain(mockAuthorProfile)) // profiles author
         .mockReturnValueOnce(chain(mockMergedEvents)) // xp_events author
-        .mockReturnValueOnce(chain(mockMentorProfile)); // profiles mentor
+        .mockReturnValueOnce(chain(mockMentorProfile)) // profiles mentor
+        .mockReturnValueOnce(chain([])); // pull_request_pipeline_stages
 
       vi.mocked(detect.listMaintainerRepos).mockResolvedValue(['org/repo']);
 
