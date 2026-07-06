@@ -114,7 +114,6 @@ export default async function PrDetailPage({ params }: { params: Promise<{ id: s
           prNumber={pr.number}
           installationId={pr.installationId!}
         />
-
         {/* Layout grid */}
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
           {/* Main timeline + Header (2 cols) */}
@@ -403,7 +402,9 @@ export default async function PrDetailPage({ params }: { params: Promise<{ id: s
               <div className="rounded-3xl border border-zinc-800 bg-zinc-900/60 p-6 backdrop-blur-md">
                 <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-zinc-400">
                   <Award className="h-4 w-4 text-amber-400" />
-                  {pr.state === 'open' ? 'Rewards Preview' : 'Rewards Awarded'}
+                  {pr.state === 'open'
+                    ? `Rewards Preview (#${pr.number})`
+                    : `Rewards Awarded (#${pr.number})`}
                 </h2>
 
                 <div className="space-y-4">
@@ -464,7 +465,6 @@ export default async function PrDetailPage({ params }: { params: Promise<{ id: s
               </div>
             )}
 
-            {/* Merge Decision Card */}
             <div className="sticky top-6 rounded-3xl border border-zinc-800 bg-zinc-900 p-6">
               <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-400">
                 Merge Decision
