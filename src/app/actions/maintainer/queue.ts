@@ -1,5 +1,6 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { getServiceSupabase } from '@/lib/supabase/service';
 import { ok, err, type Result } from '@/lib/result';
 import { requireMaintainer } from '@/lib/action-auth';
@@ -679,7 +680,10 @@ export async function requestChanges(prId: number, comment: string): Promise<Res
   return ok({ ok: true });
 }
 
-export async function mergePullRequest(prId: number): Promise<Result<{ ok: true }>> {
+export async function mergePullRequest(
+  prId: number,
+  options?: { mergeMethod?: 'merge' | 'squash' | 'rebase'; expectedHeadSha?: string },
+): Promise<Result<{ ok: true }>> {
   const authRes = await requireMaintainer({
     rateLimit: { namespace: 'maint:merge-pr', ...RATE_LIMIT_TIERS.STANDARD },
     requireService: true,
@@ -721,9 +725,13 @@ export async function mergePullRequest(prId: number): Promise<Result<{ ok: true 
       owner,
       repo,
       pull_number: pr.number,
-      merge_method: 'squash',
+      merge_method: options?.mergeMethod || 'squash',
+      sha: options?.expectedHeadSha,
     });
-  } catch (error: any) {
+    } catch (error: any) {
+    const errorMsg = error.message || 'Failed to merge PR via GitHub API';
+    
+    // 1. Log the failure first before any early returns
     await logMaintainerAction({
       actorUserId: user.id,
       installationId,
@@ -731,13 +739,25 @@ export async function mergePullRequest(prId: number): Promise<Result<{ ok: true 
       targetType: 'pull_request',
       targetId: prId.toString(),
       status: 'failed',
-      errorMessage: error.message || 'Failed to merge PR via GitHub API',
+      errorMessage: errorMsg,
     });
-    return err('github_error', error.message || 'Failed to merge PR via GitHub API');
+
+    // 2. Check statuses and return corresponding error results
+    if (error.status === 403) return err('github_error', 'Permission denied on GitHub (403)');
+    if (error.status === 404) return err('not_found', 'PR or Repository not found on GitHub');
+    if (error.status === 405)
+      return err('github_error', 'Merge rejected (e.g. branch protection or not mergeable)');
+    if (error.status === 409)
+      return err('github_error', 'Merge conflict or stale PR (head SHA changed)');
+    if (error.status === 422)
+      return err('invalid_input', 'PR is already merged or cannot be merged');
+
+    return err('github_error', errorMsg);
   }
 
   await service.from('pull_requests').update({ state: 'merged' }).eq('id', prId);
 
+  // 3. Log success
   await logMaintainerAction({
     actorUserId: user.id,
     installationId,
@@ -746,6 +766,10 @@ export async function mergePullRequest(prId: number): Promise<Result<{ ok: true 
     targetId: prId.toString(),
     status: 'success',
   });
+
+  // 4. Revalidate paths to update UI
+  revalidatePath(`/maintainer/pr/${prId}`);
+  revalidatePath('/maintainer');
 
   return ok({ ok: true });
 }
@@ -1043,6 +1067,23 @@ export async function getPrDetails(prId: number): Promise<Result<MaintainerPrRow
     }
   }
 
+  let headSha: string | undefined = undefined;
+  if (rawPr.state === 'open') {
+    try {
+      const octokit = await getInstallOctokit(installationId);
+      const [owner, repo] = rawPr.repo_full_name.split('/');
+      if (owner && repo) {
+        const githubPr = await octokit.pulls.get({
+          owner,
+          repo,
+          pull_number: rawPr.number,
+        });
+        headSha = githubPr.data.head.sha;
+      }
+    } catch (e) {
+      // Ignore GitHub API errors when just viewing PR details
+    }
+  }
   const row: MaintainerPrRow = {
     id: rawPr.id,
     repoFullName: rawPr.repo_full_name,
@@ -1062,6 +1103,7 @@ export async function getPrDetails(prId: number): Promise<Result<MaintainerPrRow
     githubUpdatedAt: rawPr.github_updated_at,
     aiFlagged: rawPr.ai_flagged,
     installationId,
+    headSha,
   };
 
   return ok(row);
