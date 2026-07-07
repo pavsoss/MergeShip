@@ -27,3 +27,7 @@ END $$;
 
 CREATE INDEX IF NOT EXISTS "maintainer_audit_logs_installation_idx" ON "maintainer_audit_logs" USING btree ("installation_id","created_at");
 CREATE INDEX IF NOT EXISTS "maintainer_audit_logs_actor_idx" ON "maintainer_audit_logs" USING btree ("actor_user_id","created_at");
+
+ALTER TABLE "maintainer_audit_logs" ENABLE ROW LEVEL SECURITY;
+-- no anon/authenticated grants - this table should only be touched via service role
+

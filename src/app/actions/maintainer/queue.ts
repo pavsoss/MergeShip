@@ -728,9 +728,9 @@ export async function mergePullRequest(
       merge_method: options?.mergeMethod || 'squash',
       sha: options?.expectedHeadSha,
     });
-    } catch (error: any) {
+  } catch (error: any) {
     const errorMsg = error.message || 'Failed to merge PR via GitHub API';
-    
+
     // 1. Log the failure first before any early returns
     await logMaintainerAction({
       actorUserId: user.id,
