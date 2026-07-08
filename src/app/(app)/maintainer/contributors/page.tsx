@@ -1,10 +1,11 @@
 import { redirect } from 'next/navigation';
 import { getServerSupabase } from '@/lib/supabase/server';
-import { isUserMaintainer } from '@/lib/maintainer/detect';
+import { isUserMaintainer, listMaintainerRepos } from '@/lib/maintainer/detect';
 import {
   getMaintainerInstalls,
   getContributorsList,
   getContributorStats,
+  listPendingInvites,
   type ContributorListRow,
 } from '@/app/actions/maintainer';
 import type { MaintainerInstall } from '@/lib/maintainer/detect';
@@ -13,6 +14,7 @@ import { ContributorsTable } from './contributors-table';
 
 import { LevelDistributionPanel } from './level-distribution-panel';
 import { StatsBar } from './stats-bar';
+import { PendingInvitesPanel } from './pending-invites-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,10 +46,15 @@ export default async function ContributorsPage({
   const contributors: ContributorListRow[] = isOk(contributorsRes) ? contributorsRes.data : [];
   const install = installs.find((i) => i.installationId === installId)!;
 
+  const repos = await listMaintainerRepos(user.id, installId);
+
   const statsRes = await getContributorStats(installId);
   const stats = isOk(statsRes)
     ? statsRes.data
     : { total: 0, active: 0, l2Plus: 0, joinedLast7d: 0, avgTrust: 0, pendingInvites: 0 };
+
+  const invitesRes = await listPendingInvites(installId);
+  const pendingInvites = isOk(invitesRes) ? invitesRes.data : [];
 
   return (
     <div className="min-h-screen bg-zinc-950 px-6 py-12 text-white">
@@ -64,10 +71,12 @@ export default async function ContributorsPage({
               installationId={installId}
               isOrganization={install.accountType === 'Organization'}
               initialContributors={contributors}
+              repos={repos}
             />
           </div>
-          <div className="lg:col-span-1">
+          <div className="flex flex-col gap-8 lg:col-span-1">
             <LevelDistributionPanel contributors={contributors} />
+            <PendingInvitesPanel invites={pendingInvites} installationId={installId} />
           </div>
         </div>
       </div>

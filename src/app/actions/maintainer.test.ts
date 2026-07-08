@@ -1547,7 +1547,8 @@ describe('maintainer actions', () => {
         .mockReturnValueOnce(chain(mockRepo)) // installation_repositories
         .mockReturnValueOnce(chain(mockAuthorProfile)) // profiles author
         .mockReturnValueOnce(chain(mockMergedEvents)) // xp_events author
-        .mockReturnValueOnce(chain(mockMentorProfile)); // profiles mentor
+        .mockReturnValueOnce(chain(mockMentorProfile)) // profiles mentor
+        .mockReturnValueOnce(chain([])); // pull_request_pipeline_stages
 
       vi.mocked(detect.listMaintainerRepos).mockResolvedValue(['org/repo']);
 
