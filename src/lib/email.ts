@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 
-export function htmlEscape(raw: string): string {
+export function htmlEscape(raw: string | null | undefined): string {
+  if (!raw) return '';
   return raw
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -100,7 +101,7 @@ export async function sendWeeklyDigestEmail({
       ? `
       <h3>Recommended for you:</h3>
       <ul>
-        ${recommendations.map((r) => `<li><a href="${r.url}">${r.title}</a> (+${r.xpReward} XP)</li>`).join('')}
+        ${recommendations.map((r) => `<li><a href="${htmlEscape(r.url)}">${htmlEscape(r.title)}</a> (+${r.xpReward} XP)</li>`).join('')}
       </ul>
     `
       : '';
@@ -112,7 +113,7 @@ export async function sendWeeklyDigestEmail({
     html: `
       <h2>Your Weekly Progress Digest</h2>
 
-      <p>Hello ${githubHandle}, here's what you achieved this week on MergeShip!</p>
+      <p>Hello ${htmlEscape(githubHandle)}, here's what you achieved this week on MergeShip!</p>
 
       <h3>Progress</h3>
       <ul>
@@ -164,9 +165,9 @@ export async function sendOrganizationInviteEmail({
     subject: `[MergeShip] ${inviterHandle} invited you to join ${organizationName}`,
     html: `
       <h2>You've been invited!</h2>
-      <p>${inviterHandle} invited you to join <strong>${organizationName}</strong> on MergeShip.</p>
+      <p>${htmlEscape(inviterHandle)} invited you to join <strong>${htmlEscape(organizationName)}</strong> on MergeShip.</p>
       <p>Click the link below to accept the invitation:</p>
-      <p><a href="${inviteLink}">${inviteLink}</a></p>
+      <p><a href="${htmlEscape(inviteLink)}">${htmlEscape(inviteLink)}</a></p>
     `,
   });
 }
