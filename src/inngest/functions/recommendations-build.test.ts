@@ -79,7 +79,7 @@ describe('recommendations-build (dispatcher)', () => {
     expect(mockSendEvent).toHaveBeenCalledOnce();
 
     // First argument is event name, second is array of events
-    const [, events] = mockSendEvent.mock.calls[0];
+    const [, events] = mockSendEvent.mock.calls[0]!;
     expect(events).toHaveLength(3); // 120 / 50 = 3 batches (50, 50, 20)
 
     expect(events[0].name).toBe('recommendations/build.worker');
