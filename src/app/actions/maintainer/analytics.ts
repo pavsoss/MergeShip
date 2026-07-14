@@ -25,6 +25,7 @@ import type {
   PromotionEligibleRow,
   ContributorFunnelData,
 } from './types';
+import { type AnalyticsRange, rangeToDateBounds } from '@/lib/maintainer/analytics-range';
 
 export async function getRepoHealthOverview(args: {
   installationId: number;
@@ -688,4 +689,144 @@ export async function getContributorFunnel(args: {
   const l2Promoted = (profileRows ?? []).length;
 
   return ok({ registered, firstPr, l2Promoted });
+}
+
+export type RepoAnalyticsRow = {
+  repoFullName: string;
+  prsMerged: number;
+  prsMergedDelta: number;
+  avgReviewHours: number | null;
+  aiBlocked: number;
+  activeContributors: number;
+  signalRate: number;
+};
+
+export async function getRepoAnalyticsBreakdown(
+  installationId: number,
+  range: AnalyticsRange,
+): Promise<Result<RepoAnalyticsRow[]>> {
+  const authRes = await requireMaintainer({
+    rateLimit: { namespace: 'maintainer', ...RATE_LIMIT_TIERS.STANDARD },
+    requireService: true,
+  });
+  if (!authRes.ok) return authRes;
+  const { user, service } = authRes.data;
+
+  const repos = await listMaintainerRepos(user.id, installationId);
+  if (repos.length === 0) {
+    return ok([]);
+  }
+
+  const now = new Date();
+  const current = rangeToDateBounds(range, now);
+  const diffMs = current.to.getTime() - current.from.getTime();
+
+  let previous = null;
+  if (range !== 'all') {
+    previous = {
+      from: new Date(current.from.getTime() - diffMs),
+      to: new Date(current.from.getTime()),
+    };
+  }
+
+  const fetchFrom = previous ? previous.from : current.from;
+
+  const { data: prs, error } = await service
+    .from('pull_requests')
+    .select(
+      'repo_full_name, state, author_user_id, ai_flagged, mentor_verified, github_created_at, mentor_review_at, github_updated_at, merged_at, closed_at',
+    )
+    .in('repo_full_name', repos)
+    .gte('github_updated_at', fetchFrom.toISOString())
+    .lte('github_updated_at', current.to.toISOString());
+
+  if (error) {
+    return err('query_failed', error.message);
+  }
+
+  type RepoStats = {
+    currentMerged: number;
+    prevMerged: number;
+    aiBlocked: number;
+    activeContributors: Set<string>;
+    closedCount: number;
+    reviewTimesHours: number[];
+  };
+
+  const repoStats = new Map<string, RepoStats>();
+  for (const repo of repos) {
+    repoStats.set(repo, {
+      currentMerged: 0,
+      prevMerged: 0,
+      aiBlocked: 0,
+      activeContributors: new Set(),
+      closedCount: 0,
+      reviewTimesHours: [],
+    });
+  }
+
+  for (const pr of prs ?? []) {
+    const stats = repoStats.get(pr.repo_full_name);
+    if (!stats) continue;
+
+    const prDate = new Date(pr.github_updated_at);
+    const isCurrentActivity = prDate >= current.from && prDate <= current.to;
+
+    if (pr.state === 'merged' && pr.merged_at) {
+      const mergedDate = new Date(pr.merged_at);
+      const isCurrentMerge = mergedDate >= current.from && mergedDate <= current.to;
+      const isPrevMerge = previous
+        ? mergedDate >= previous.from && mergedDate < current.from
+        : false;
+
+      if (isCurrentMerge) stats.currentMerged++;
+      if (isPrevMerge) stats.prevMerged++;
+    }
+
+    if (pr.state === 'closed' && pr.closed_at) {
+      const closedDate = new Date(pr.closed_at);
+      const isCurrentClose = closedDate >= current.from && closedDate <= current.to;
+      if (isCurrentClose) stats.closedCount++;
+    }
+
+    if (isCurrentActivity) {
+      if (pr.ai_flagged) stats.aiBlocked++;
+      if (pr.author_user_id) stats.activeContributors.add(pr.author_user_id);
+
+      if (pr.mentor_verified && pr.mentor_review_at && pr.github_created_at) {
+        const created = new Date(pr.github_created_at).getTime();
+        const reviewed = new Date(pr.mentor_review_at).getTime();
+        if (reviewed > created) {
+          stats.reviewTimesHours.push((reviewed - created) / (1000 * 60 * 60));
+        }
+      }
+    }
+  }
+
+  const resultRows: RepoAnalyticsRow[] = repos.map((repo) => {
+    const stats = repoStats.get(repo)!;
+    const totalClosedOrMerged = stats.currentMerged + stats.closedCount;
+    const signalRate =
+      totalClosedOrMerged > 0 ? (stats.currentMerged / totalClosedOrMerged) * 100 : 0;
+
+    let avgReviewHours: number | null = null;
+    if (stats.reviewTimesHours.length >= 3) {
+      const sum = stats.reviewTimesHours.reduce((a, b) => a + b, 0);
+      avgReviewHours = sum / stats.reviewTimesHours.length;
+    }
+
+    return {
+      repoFullName: repo,
+      prsMerged: stats.currentMerged,
+      prsMergedDelta: stats.currentMerged - stats.prevMerged,
+      avgReviewHours,
+      aiBlocked: stats.aiBlocked,
+      activeContributors: stats.activeContributors.size,
+      signalRate,
+    };
+  });
+
+  resultRows.sort((a, b) => b.prsMerged - a.prsMerged);
+
+  return ok(resultRows);
 }
